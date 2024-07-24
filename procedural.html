@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fish-like Creature with Fins</title>
+  <style>
+    canvas {
+      border: 1px solid black;
+    }
+  </style>
+</head>
+
+<body>
+  <canvas id="canvas" width="1500" height="1000"></canvas>
+  <script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+
+class ConstrainedPoint {
+  constructor(x, y, constraintRadius, isHead = false) {
+    this.x = x;
+    this.y = y;
+    this.constraintRadius = constraintRadius;
+    this.previousPoint = null;
+    this.nextPoint = null;
+    this.isHead = isHead;
+    this.angle = Math.random() * Math.PI * 2;
+    this.speed = 5; // Moderate speed
+    this.turnRate = 0.6; // How quickly it can change direction
+    this.waveAngle = .4; // For wavy motion
+  }
+
+move(mouseX, mouseY) {
+  if (this.isHead) {
+    let targetX, targetY;
+    if (mouseX !== null && mouseY !== null) {
+      targetX = mouseX;
+      targetY = mouseY;
+    } else {
+      targetX = this.x + Math.cos(this.angle) * this.speed;
+      targetY = this.y + Math.sin(this.angle) * this.speed;
+    }
+
+    const dx = targetX - this.x;
+    const dy = targetY - this.y;
+    const targetAngle = Math.atan2(dy, dx);
+
+    // Smooth turning
+    const angleDiff = (targetAngle - this.angle + 3 * Math.PI) % (2 * Math.PI) - Math.PI;
+    this.angle += Math.sign(angleDiff) * Math.min(Math.abs(angleDiff), this.turnRate);
+
+    // Add wavy motion
+    this.waveAngle += 0.1;
+    const waveOffset = Math.sin(this.waveAngle) * 0.5;
+    
+    this.x += Math.cos(this.angle + waveOffset) * this.speed;
+    this.y += Math.sin(this.angle + waveOffset) * this.speed;
+
+    // Wall and corner avoidance
+    const margin = 150; // Increased margin distance from edge to start turning
+    const turnStrength = 0.3; // Increased strength of turn when avoiding walls
+
+    // Avoid corners
+    if (this.x < margin && this.y < margin) {
+      this.angle = (Math.PI / 4);
+    } else if (this.x < margin && this.y > canvas.height - margin) {
+      this.angle = (-Math.PI / 4);
+    } else if (this.x > canvas.width - margin && this.y < margin) {
+      this.angle = (3 * Math.PI / 4);
+    } else if (this.x > canvas.width - margin && this.y > canvas.height - margin) {
+      this.angle = (-3 * Math.PI / 4);
+    } else if (this.x < margin) {
+      this.angle = (-Math.PI / 2);
+    } else if (this.x > canvas.width - margin) {
+      this.angle = (Math.PI / 2);
+    } else if (this.y < margin) {
+      this.angle = 0;
+    } else if (this.y > canvas.height - margin) {
+      this.angle = Math.PI;
+    }
+
+    // Ensure it stays within the canvas
+    this.x = Math.max(10, Math.min(canvas.width - 10, this.x));
+    this.y = Math.max(10, Math.min(canvas.height - 10, this.y));
+  }
+}
+      constrain() {
+        if (this.previousPoint) {
+          const dx = this.x - this.previousPoint.x;
+          const dy = this.y - this.previousPoint.y;
+          const distance = Math.sqrt(dx * dx + dy * dy);
+          if (distance > this.constraintRadius) {
+            const angle = Math.atan2(dy, dx);
+            this.x = this.previousPoint.x + Math.cos(angle) * this.constraintRadius;
+            this.y = this.previousPoint.y + Math.sin(angle) * this.constraintRadius;
+          }
+        }
+      }
+    }
+
+    const constraintRadius = 12;
+    const numSegments = 12;
+    const bodySizes = Array.from({ length: numSegments }, (_, i) => {
+      if (i === 0) return 20; // Head size
+      const t = i / (numSegments - 1);
+      return 20 * (1 - Math.pow(t, 1.1)); // Smoother taper
+    });
+    const maxBendAngle = Math.PI / 4;
+
+    const points = Array.from({ length: numSegments }, (_, i) =>
+      new ConstrainedPoint(400 + i * constraintRadius, 300, constraintRadius, i === 0)
+    );
+
+    // Link the points
+    for (let i = 1; i < points.length; i++) {
+      points[i].previousPoint = points[i - 1];
+      points[i - 1].nextPoint = points[i];
+    }
+
+    let mouseX = null;
+    let mouseY = null;
+
+    canvas.addEventListener('mousemove', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      mouseX = e.clientX - rect.left;
+      mouseY = e.clientY - rect.top;
+    });
+
+    canvas.addEventListener('mouseout', () => {
+      mouseX = null;
+      mouseY = null;
+    });
+
+    function limitJointAngle(p1, p2, p3) {
+      const angle1 = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+      const angle2 = Math.atan2(p3.y - p2.y, p3.x - p2.x);
+      let angleDiff = (angle2 - angle1 + 3 * Math.PI) % (2 * Math.PI) - Math.PI;
+
+      if (Math.abs(angleDiff) > maxBendAngle) {
+        const adjustment = (Math.abs(angleDiff) - maxBendAngle) * Math.sign(angleDiff);
+        const newAngle = angle1 + maxBendAngle * Math.sign(angleDiff);
+        p3.x = p2.x + Math.cos(newAngle) * constraintRadius;
+        p3.y = p2.y + Math.sin(newAngle) * constraintRadius;
+      }
+    }
+
+function getOuterContour() {
+  const path = new Path2D();
+
+  function getOuterPoint(t, side) {
+    const index = Math.min(Math.floor(t * (points.length - 1)), points.length - 2);
+    const localT = (t * (points.length - 1)) % 1;
+    const p1 = points[index];
+    const p2 = points[index + 1];
+    const size1 = bodySizes[index];
+    const size2 = bodySizes[index + 1];
+
+    const x = (1 - localT) * p1.x + localT * p2.x;
+    const y = (1 - localT) * p1.y + localT * p2.y;
+    const r = (1 - localT) * size1 + localT * size2;
+    const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x) + (side * Math.PI / 2);
+
+    return {
+      x: x + r * Math.cos(angle),
+      y: y + r * Math.sin(angle)
+    };
+  }
+
+  const headCenter = points[0];
+  const headRadius = bodySizes[0];
+  const headAngle = Math.atan2(points[1].y - points[0].y, points[1].x - points[0].x);
+
+  // Start with the right side of the head
+  path.moveTo(headCenter.x + headRadius * Math.cos(headAngle + Math.PI/2), 
+              headCenter.y + headRadius * Math.sin(headAngle + Math.PI/2));
+
+  // Draw the front of the head (half circle)
+  path.arc(headCenter.x, headCenter.y, headRadius, headAngle + Math.PI/2, headAngle - Math.PI/2, false);
+
+  // Draw left side of the body
+  for (let t = 0; t <= 1; t += 0.01) {
+    const point = getOuterPoint(t, -1);
+    path.lineTo(point.x, point.y);
+  }
+
+  // Draw right side of the body
+  for (let t = 1; t >= 0; t -= 0.01) {
+    const point = getOuterPoint(t, 1);
+    path.lineTo(point.x, point.y);
+  }
+
+  // Close the path
+  path.closePath();
+
+  return path;
+}
+
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Move head and constrain all points
+  points[0].move(mouseX, mouseY);
+  for (const point of points) {
+    point.constrain();
+  }
+
+  // Apply joint stiffness
+  for (let i = 0; i < points.length - 2; i++) {
+    limitJointAngle(points[i], points[i + 1], points[i + 2]);
+  }
+
+  // Draw outer contour (including head)
+  const contourPath = getOuterContour();
+  ctx.fillStyle = 'rgba(0, 100, 200, 0.9)';
+  ctx.fill(contourPath);
+  ctx.strokeStyle = 'rgba(0, 50, 100, 0.9)';
+  ctx.lineWidth = 2;
+  ctx.stroke(contourPath);
+
+  // Draw fins
+  const finPointIndex = 2; // Adjust this to move fins up or down the body
+  const finPath = drawFins(finPointIndex);
+  ctx.fillStyle = 'rgba(0, 100, 200, 0.7)';
+  ctx.fill(finPath);
+  ctx.stroke(finPath);
+
+  requestAnimationFrame(draw);
+}
+
+    function drawFins(finPointIndex) {
+      const finPath = new Path2D();
+      const finLength = 20;
+      const finWidth = 5;
+      const finAngle = Math.PI / 6; // Default outward angle (30 degrees)
+
+      function finShape(t, foldFactor) {
+        const x = t * finLength;
+        const y = finWidth * Math.sin(t * Math.PI) * foldFactor + x * Math.tan(finAngle);
+        return { x, y };
+      }
+
+      const p1 = points[finPointIndex];
+      const p2 = points[finPointIndex + 1];
+      const p0 = points[Math.max(0, finPointIndex - 1)];
+      const bodyAngle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+      const prevBodyAngle = Math.atan2(p1.y - p0.y, p1.x - p0.x);
+      const turnAngle = (bodyAngle - prevBodyAngle + 3 * Math.PI) % (2 * Math.PI) - Math.PI;
+
+      const size = bodySizes[finPointIndex];
+      const rightFinBase = {
+        x: p1.x + size * Math.cos(bodyAngle + Math.PI / 2),
+        y: p1.y + size * Math.sin(bodyAngle + Math.PI / 2)
+      };
+      const leftFinBase = {
+        x: p1.x + size * Math.cos(bodyAngle - Math.PI / 2),
+        y: p1.y + size * Math.sin(bodyAngle - Math.PI / 2)
+      };
+
+      const rightFoldFactor = 1 - Math.max(0, Math.min(1, turnAngle / (Math.PI / 4)));
+      const leftFoldFactor = 1 + Math.max(0, Math.min(1, turnAngle / (Math.PI / 4)));
+
+      // Draw right fin
+      finPath.moveTo(rightFinBase.x, rightFinBase.y);
+      for (let t = 0; t <= 1; t += 0.1) {
+        const point = finShape(t, rightFoldFactor);
+        const rotatedX = point.x * Math.cos(bodyAngle + finAngle) - point.y * Math.sin(bodyAngle + finAngle);
+        const rotatedY = point.x * Math.sin(bodyAngle + finAngle) + point.y * Math.cos(bodyAngle + finAngle);
+        finPath.lineTo(rightFinBase.x + rotatedX, rightFinBase.y + rotatedY);
+      }
+      finPath.lineTo(rightFinBase.x, rightFinBase.y);
+
+      // Draw left fin
+      finPath.moveTo(leftFinBase.x, leftFinBase.y);
+      for (let t = 0; t <= 1; t += 0.1) {
+        const point = finShape(t, leftFoldFactor);
+        const rotatedX = point.x * Math.cos(bodyAngle - finAngle) - (-point.y) * Math.sin(bodyAngle - finAngle);
+        const rotatedY = point.x * Math.sin(bodyAngle - finAngle) + (-point.y) * Math.cos(bodyAngle - finAngle);
+        finPath.lineTo(leftFinBase.x + rotatedX, leftFinBase.y + rotatedY);
+      }
+      finPath.lineTo(leftFinBase.x, leftFinBase.y);
+
+      return finPath;
+    }
+    draw();
+  </script>
+</body>
+
+</html>
