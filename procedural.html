@@ -84,6 +84,10 @@ move(mouseX, mouseY) {
     // Ensure it stays within the canvas
     this.x = Math.max(10, Math.min(canvas.width - 10, this.x));
     this.y = Math.max(10, Math.min(canvas.height - 10, this.y));
+    // Occasional random direction changes
+    if (mouseX === null && mouseY === null && Math.random() < 0.1) {
+      this.angle += (Math.random() - 0.5) * Math.PI / 4;
+    }
   }
 }
       constrain() {
